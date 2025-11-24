@@ -1,0 +1,748 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Candle Climber: To The Moon Edition (v3.2)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0d1117;
+            color: #fff;
+            font-family: 'Consolas', 'Courier New', monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+            border: 2px solid #30363d;
+        }
+        canvas {
+            background-color: #161b22;
+            display: block;
+            cursor: crosshair;
+        }
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .hud-text {
+            font-size: 14px;
+            color: #8b949e;
+            margin-bottom: 5px;
+        }
+        .hud-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 0 #000;
+        }
+        .green { color: #00ff41; }
+        .red { color: #ff4d4d; }
+        
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(13, 17, 23, 0.95);
+            border: 1px solid #30363d;
+            padding: 30px;
+            text-align: center;
+            pointer-events: auto;
+            min-width: 250px;
+        }
+        button {
+            background: #238636;
+            color: #fff;
+            border: 1px solid rgba(240,246,252,0.1);
+            padding: 10px 20px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 15px;
+            border-radius: 6px;
+        }
+        button:hover { background: #2ea043; }
+        
+        /* Efeito de Powerup */
+        .diamond-mode {
+            border: 4px solid #00d2ff !important;
+            box-shadow: 0 0 30px #00d2ff !important;
+        }
+        .crayon-mode {
+            filter: hue-rotate(90deg) brightness(1.5);
+            transition: filter 0.2s;
+        }
+        
+        /* Painel de Ajuda */
+        #help-panel {
+            position: absolute;
+            top: 10px; 
+            left: -320px; 
+            width: 300px;
+            background: rgba(13, 17, 23, 0.9);
+            border: 1px solid #30363d;
+            padding: 15px;
+            font-size: 12px;
+            pointer-events: auto;
+            transition: left 0.3s ease-out;
+            color: #c9d1d9;
+        }
+        #gameContainer:hover #help-panel {
+            left: 10px; 
+        }
+        .panel-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 5px 0 10px 0;
+        }
+        .panel-list li {
+            margin-bottom: 5px;
+        }
+        .panel-list strong {
+            color: #fff;
+        }
+
+
+    </style>
+</head>
+<body>
+
+
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="400" height="650"></canvas>
+    
+    <div id="ui-layer">
+        <div style="float: left;">
+            <div class="hud-text">UNREALIZED GAINS</div>
+            <div class="hud-value green" id="scoreDisplay">+0.00%</div>
+        </div>
+        <div style="float: right; text-align: right;">
+            <div class="hud-text">TENDIES (CASH)</div>
+            <div class="hud-value" id="tendiesDisplay">🍗 0</div>
+        </div>
+        <div style="clear: both;"></div>
+        
+        <div id="powerupMsg" style="text-align: center; margin-top: 20px; display: none;">
+            </div>
+    </div>
+    
+    <div id="help-panel">
+        <h3 style="margin-top: 0; color: #00ff41;">COMANDOS & POWER-UPS</h3>
+        <hr style="border-color: #30363d;">
+        
+        <p style="font-weight: bold; margin-bottom: 5px; color: #fff;">MOVIMENTO (Controles):</p>
+        <ul class="panel-list">
+            <li>➡️ & ⬅️ / Toque: Move o Foguete 🚀</li>
+            <li>**Vela Verde** 🟢: Pulso de Compra, Pulso Forte.</li>
+            <li>**Vela Vermelha** 🔴: Pulso de Venda, Pulso Fraco (Cuidado!)</li>
+            <li>**HEDGE SHORT** 📉: Toca no Short e você é empurrado para baixo!</li>
+        </ul>
+        
+        <p style="font-weight: bold; margin-bottom: 5px; color: #fff;">POWER-UPS (Itens):</p>
+        <ul class="panel-list">
+            <li>🍗 **Tendies (Cash)**: Aumenta a pontuação final (Tendies).</li>
+            <li>💎 **Diamond Hands**: Imune a velas vermelhas e Shorts.</li>
+            <li>🖍️ **Giz de Cera**: Inverte os controles (movimento irracional).</li>
+            <li>🦍 **O Gorila (Ape)**: Plataforma de resgate de um único uso, salva da queda.</li>
+        </ul>
+        
+        <p style="font-size: 10px; margin-top: 10px;">*Passe o mouse sobre a área de jogo para ver o painel.*</p>
+    </div>
+
+
+    <div id="start-screen">
+        <h1>CANDLE CLIMBER</h1>
+        <p style="color: #8b949e;">Compre na baixa, venda na alta.</p>
+        <p style="font-size: 12px;">Use as SETAS ou TOQUE para mover.</p>
+        <button onclick="startGame()">OPEN POSITION</button>
+    </div>
+
+
+    <div id="game-over-screen" style="display: none;">
+        <h1 class="red">LIQUIDATED</h1>
+        <p>O mercado te engoliu.</p>
+        <div class="hud-text">Final Gains:</div>
+        <div class="hud-value" id="finalScore">0.00%</div>
+        <br>
+        <button onclick="startGame()">BUY THE DIP (Restart)</button>
+    </div>
+</div>
+
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('gameContainer');
+
+
+    // --- CONFIGURAÇÃO (Balanceamento) ---
+    const CONFIG = {
+        gravity: 0.3, 
+        jumpForce: -9.5, // Pulo normal (~150px)
+        weakJumpForce: -7.0, // Pulo fraco (Vela Vermelha) (~81px)
+        // REDUÇÃO CHAVE: Máxima distância vertical garantida para 55px.
+        maxGap: 55, 
+        minGap: 40,
+        moveSpeed: 6,
+        stopLossStartSpeed: 0.8,
+        width: 400,
+        height: 650
+    };
+
+
+    // --- ESTADO DO JOGO ---
+    let state = {
+        player: {},
+        platforms: [],
+        items: [],
+        obstacles: [], 
+        particles: [],
+        score: 0, 
+        tendies: 0, 
+        stopLossY: 0,
+        gameOver: false,
+        diamondMode: 0, 
+        crayonMode: 0,  
+        lastPlatformY: 0,
+        difficultyLevel: 1, 
+        apeHelper: null 
+    };
+
+
+    let keys = { ArrowLeft: false, ArrowRight: false };
+
+
+    // --- CLASSES ---
+
+
+    class Player {
+        constructor() {
+            this.w = 30; this.h = 30;
+            this.x = CONFIG.width/2 - 15;
+            this.y = CONFIG.height - 200;
+            this.vx = 0; this.vy = 0;
+            this.icon = "🚀";
+        }
+        update() {
+            const moveDir = state.crayonMode > 0 ? -1 : 1;
+            
+            if (keys.ArrowLeft) this.vx = -CONFIG.moveSpeed * moveDir;
+            else if (keys.ArrowRight) this.vx = CONFIG.moveSpeed * moveDir;
+            else this.vx = 0;
+
+
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += CONFIG.gravity;
+
+
+            if (this.x + this.w < 0) this.x = CONFIG.width;
+            if (this.x > CONFIG.width) this.x = -this.w;
+        }
+        draw() {
+            ctx.font = "30px Arial";
+            ctx.textAlign = "left";
+            const drawIcon = state.diamondMode > 0 ? "💎" : this.icon;
+            ctx.save();
+            if (state.diamondMode > 0) {
+                ctx.shadowColor = "#00d2ff"; ctx.shadowBlur = 15;
+            }
+            ctx.fillText(drawIcon, this.x, this.y + this.h);
+            ctx.restore();
+        }
+    }
+
+
+    class Platform {
+        constructor(x, y, type) {
+            this.x = x; this.y = y;
+            this.w = 60; this.h = 15;
+            this.type = type; 
+        }
+        draw() {
+            const colorMain = this.type === 'green' ? '#00cc33' : '#cc0000';
+            const colorStroke = this.type === 'green' ? '#00ff41' : '#ff4d4d';
+            ctx.fillStyle = colorStroke;
+            ctx.fillRect(this.x + this.w/2 - 1, this.y - 10, 2, this.h + 20);
+            ctx.fillStyle = colorMain;
+            ctx.fillRect(this.x, this.y, this.w, this.h);
+            ctx.strokeStyle = colorStroke;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(this.x, this.y, this.w, this.h);
+        }
+    }
+
+
+    class Item {
+        constructor(x, y, type) {
+            this.x = x; this.y = y;
+            this.type = type; 
+            this.w = 25; this.h = 25;
+            this.collected = false;
+            this.bobOffset = Math.random() * Math.PI;
+        }
+        draw() {
+            if(this.collected) return;
+            const bobY = Math.sin(Date.now() / 200 + this.bobOffset) * 5;
+            ctx.font = "24px Arial";
+            let icon;
+            if (this.type === 'tendie') icon = '🍗';
+            else if (this.type === 'diamond') icon = '💎';
+            else if (this.type === 'crayon') icon = '🖍️';
+            else if (this.type === 'ape') icon = '🦍';
+
+
+            ctx.fillText(icon, this.x, this.y + bobY);
+        }
+    }
+    
+    class HedgeShort {
+        constructor(y) {
+            this.x = (Math.random() < 0.5 ? -100 : CONFIG.width + 50); 
+            this.y = y;
+            this.w = 100;
+            this.h = 20;
+            this.speed = 2.0 + Math.random() * 0.5;
+            this.direction = this.x < 0 ? 1 : -1;
+        }
+
+
+        update() {
+            this.x += this.speed * this.direction;
+            if (this.x < -this.w * 2 || this.x > CONFIG.width + this.w * 2) {
+                 this.direction *= -1;
+            }
+        }
+
+
+        draw() {
+            ctx.fillStyle = "#333";
+            ctx.fillRect(this.x, this.y, this.w, this.h);
+            ctx.strokeStyle = "#ff4d4d";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(this.x, this.y, this.w, this.h);
+            
+            ctx.fillStyle = "#fff";
+            ctx.font = "14px Consolas";
+            ctx.textAlign = "center";
+            ctx.fillText("HEDGE SHORT", this.x + this.w / 2, this.y + this.h / 2 + 5);
+        }
+    }
+
+
+    class ApeHelper {
+        constructor() {
+            this.w = 60; this.h = 15;
+            this.x = state.player.x;
+            this.y = state.player.y + 100; 
+            this.life = 120; 
+        }
+        
+        update() {
+            this.life--;
+            this.x = state.player.x - this.w/2 + state.player.w/2;
+            this.y -= 1; 
+        }
+
+
+        draw() {
+            ctx.fillStyle = "rgba(101, 67, 33, " + (this.life/120).toFixed(2) + ")"; 
+            ctx.fillRect(this.x, this.y, this.w, this.h);
+            
+            ctx.font = "16px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("🦍", this.x + this.w/2, this.y - 10);
+        }
+    }
+
+
+
+
+    // --- FUNÇÕES DE JOGO ---
+
+
+    function startGame() {
+        document.getElementById('start-screen').style.display = 'none';
+        document.getElementById('game-over-screen').style.display = 'none';
+        container.classList.remove('diamond-mode', 'crayon-mode');
+        
+        state = {
+            player: new Player(),
+            platforms: [],
+            items: [],
+            obstacles: [], 
+            particles: [],
+            score: 0,
+            tendies: 0,
+            stopLossY: CONFIG.height + 100, 
+            stopLossSpeed: CONFIG.stopLossStartSpeed,
+            gameOver: false,
+            diamondMode: 0,
+            crayonMode: 0,
+            lastPlatformY: CONFIG.height - 100,
+            difficultyLevel: 1, 
+            apeHelper: null 
+        };
+
+
+        state.platforms.push(new Platform(CONFIG.width/2 - 30, CONFIG.height - 100, 'green'));
+        for(let i=0; i<8; i++) {
+            generateNextPlatform();
+        }
+
+
+        requestAnimationFrame(loop);
+    }
+
+
+    function checkDifficulty() {
+        // Nível de dificuldade de 1 a 5
+        state.difficultyLevel = 1 + Math.floor(state.score / 1000);
+        state.difficultyLevel = Math.min(state.difficultyLevel, 5);
+    }
+    
+    function generateNextPlatform() {
+        checkDifficulty(); 
+
+
+        // Gap vertical seguro, garantindo que o pulo fraco seja sempre vitorioso
+        const gapY = CONFIG.minGap + Math.random() * (CONFIG.maxGap - CONFIG.minGap);
+        const newY = state.lastPlatformY - gapY;
+        
+        // Dispersão Horizontal: Aumenta a dificuldade horizontalmente.
+        // Nível 1: Max 100px. Nível 5: Max 200px.
+        const maxDispersal = 100 + (state.difficultyLevel * 25);
+        const minX = Math.max(0, state.platforms[state.platforms.length-1].x - maxDispersal);
+        const maxX = Math.min(CONFIG.width - 60, state.platforms[state.platforms.length-1].x + maxDispersal);
+        
+        let newX = minX + Math.random() * (maxX - minX);
+        
+        // Clamp X para evitar plataformas fora da tela
+        newX = Math.max(0, Math.min(CONFIG.width - 60, newX));
+
+
+        // --- DIFICULDADE DINÂMICA ---
+        const redChance = 0.20 + (state.difficultyLevel * 0.05); 
+        const shortChance = 0.05 + (state.difficultyLevel * 0.05); 
+        
+        let type = Math.random() > redChance ? 'green' : 'red';
+        
+        // 1. Tenta Obstáculo (Short)
+        if (Math.random() < shortChance && state.platforms.length > 5) { 
+             state.obstacles.push(new HedgeShort(newY));
+        } 
+        // 2. Senão, Plataforma
+        else {
+             state.platforms.push(new Platform(newX, newY, type));
+        }
+        
+        state.lastPlatformY = newY;
+
+
+        // --- POWER-UPS (Frequência Igual) ---
+        if (Math.random() > 0.70) { 
+            const itemRoll = Math.random();
+            let itemType;
+            if (itemRoll < 0.25) itemType = 'tendie';
+            else if (itemRoll < 0.50) itemType = 'diamond';
+            else if (itemRoll < 0.75) itemType = 'crayon';
+            else itemType = 'ape'; 
+
+
+            state.items.push(new Item(newX + 15, newY - 30, itemType));
+        }
+    }
+
+
+    function update() {
+        if (state.gameOver) return;
+
+
+        const p = state.player;
+        p.update();
+
+
+        // 1. Colisão com Plataformas
+        if (p.vy > 0) {
+            state.platforms.forEach(plat => {
+                if (
+                    p.x + p.w > plat.x && p.x < plat.x + plat.w &&
+                    p.y + p.h > plat.y && p.y + p.h < plat.y + plat.h + p.vy
+                ) {
+                    if (plat.type === 'green' || state.diamondMode > 0) {
+                        p.vy = CONFIG.jumpForce; 
+                        spawnParticles(p.x + p.w/2, p.y + p.h, '#00ff41');
+                    } else {
+                        p.vy = CONFIG.weakJumpForce; 
+                        spawnParticles(p.x + p.w/2, p.y + p.h, '#ff4d4d');
+                        container.style.borderColor = '#ff4d4d';
+                        setTimeout(() => container.style.borderColor = '#30363d', 100);
+                    }
+                }
+            });
+        }
+
+
+        // 2. Colisão com Obstáculos (Hedge Shorts)
+        for (let i = state.obstacles.length - 1; i >= 0; i--) {
+            let hedge = state.obstacles[i];
+            hedge.update();
+
+
+            if (p.x + p.w > hedge.x && p.x < hedge.x + hedge.w &&
+                p.y + p.h > hedge.y && p.y < hedge.y + hedge.h) {
+                
+                if (state.diamondMode <= 0) {
+                    p.vy = Math.abs(p.vy) + 5; 
+                    spawnParticles(p.x + p.w/2, p.y, '#ff0000');
+                    canvas.style.transform = `translate(${Math.random()*10-5}px, ${Math.random()*10-5}px)`;
+                    setTimeout(() => canvas.style.transform = "none", 50);
+                } else {
+                    spawnParticles(p.x + p.w/2, p.y, '#00d2ff');
+                }
+            }
+        }
+        
+        // 3. Colisão com Itens
+        state.items.forEach(item => {
+            if (!item.collected && 
+                p.x < item.x + item.w && p.x + p.w > item.x &&
+                p.y < item.y + item.h && p.y + p.h > item.y) {
+                
+                item.collected = true;
+                if (item.type === 'tendie') {
+                    state.tendies += 1;
+                } else if (item.type === 'diamond') {
+                    activateDiamondMode();
+                } else if (item.type === 'crayon') { 
+                    activateCrayonMode();
+                } else if (item.type === 'ape') { 
+                    activateApeHelper();
+                }
+            }
+        });
+
+
+        // 4. Lógica do Gorila (Plataforma de Resgate)
+        if (state.apeHelper) {
+            state.apeHelper.update();
+            
+            const a = state.apeHelper;
+            if (p.vy > 0 &&
+                p.x + p.w > a.x && p.x < a.x + a.w &&
+                p.y + p.h > a.y && p.y + p.h < a.y + a.h + p.vy
+            ) {
+                p.vy = CONFIG.jumpForce; 
+                spawnParticles(p.x + p.w/2, p.y + p.h, 'gold');
+                state.apeHelper = null; 
+            }
+
+
+            if (state.apeHelper && state.apeHelper.life <= 0) {
+                state.apeHelper = null;
+            }
+        }
+
+
+
+
+        // 5. Sistema de Câmera e Geração
+        if (p.y < CONFIG.height / 2) {
+            const diff = (CONFIG.height / 2) - p.y;
+            p.y += diff;
+            
+            state.platforms.forEach(plat => plat.y += diff);
+            state.items.forEach(i => i.y += diff);
+            state.obstacles.forEach(o => o.y += diff); 
+            state.particles.forEach(pt => pt.y += diff);
+            state.stopLossY += diff;
+            state.lastPlatformY += diff;
+            state.score += diff;
+        }
+
+
+        // Limpar objetos fora da tela
+        state.platforms = state.platforms.filter(plat => plat.y < CONFIG.height + 50);
+        state.items = state.items.filter(i => i.y < CONFIG.height + 50);
+        state.obstacles = state.obstacles.filter(o => o.y < CONFIG.height + 50); 
+
+
+        // Gerar novas plataformas
+        if (state.lastPlatformY > 50) {
+            generateNextPlatform();
+        }
+
+
+        // 6. Stop Loss (Linha da Morte)
+        state.stopLossSpeed = CONFIG.stopLossStartSpeed + (state.score * 0.00005);
+        state.stopLossY -= state.stopLossSpeed;
+
+
+        // 7. Timers
+        if (state.diamondMode > 0) state.diamondMode--;
+        if (state.crayonMode > 0) {
+            state.crayonMode--;
+            if (state.crayonMode <= 0) {
+                document.getElementById('powerupMsg').style.display = 'none';
+                container.classList.remove('crayon-mode');
+            }
+        }
+        
+        if(state.diamondMode === 0 && document.getElementById('powerupMsg').innerText.includes('DIAMOND')) {
+            document.getElementById('powerupMsg').style.display = 'none';
+            container.classList.remove('diamond-mode');
+        }
+
+
+
+
+        // 8. Game Over Check
+        if (p.y > CONFIG.height || (p.y + p.h) > state.stopLossY) {
+            gameOver();
+        }
+
+
+        updateUI();
+    }
+
+
+    function draw() {
+        // Fundo Grid
+        ctx.fillStyle = "#161b22"; ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+        ctx.strokeStyle = "#21262d"; ctx.lineWidth = 1;
+        const gridSize = 40;
+        for(let i=0; i<CONFIG.width; i+=gridSize) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,CONFIG.height); ctx.stroke(); }
+        for(let i=0; i<CONFIG.height; i+=gridSize) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(CONFIG.width,i); ctx.stroke(); }
+
+
+        // Desenhar objetos
+        state.platforms.forEach(plat => plat.draw());
+        state.items.forEach(item => item.draw());
+        state.obstacles.forEach(o => o.draw()); 
+        if (state.apeHelper) state.apeHelper.draw(); 
+        state.player.draw();
+
+
+        // Linha Stop Loss
+        const stopY = state.stopLossY;
+        ctx.fillStyle = "rgba(255, 77, 77, 0.2)";
+        ctx.fillRect(0, stopY, CONFIG.width, CONFIG.height - stopY);
+        ctx.strokeStyle = "#ff4d4d"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, stopY); ctx.lineTo(CONFIG.width, stopY); ctx.stroke();
+        ctx.fillStyle = "#ff4d4d"; ctx.font = "12px Consolas"; ctx.fillText("STOP LOSS LIMIT", 10, stopY + 15);
+
+
+        // Partículas
+        drawParticles();
+    }
+
+
+    // --- FUNÇÕES DE POWER-UP ---
+    
+    function activateDiamondMode() {
+        state.diamondMode = 600; 
+        document.getElementById('powerupMsg').innerHTML = '<span style="background: #00d2ff; color: #000; padding: 5px 10px; font-weight: bold;">💎 DIAMOND HANDS ACTIVE 💎</span>';
+        document.getElementById('powerupMsg').style.display = 'block';
+        container.classList.add('diamond-mode');
+    }
+
+
+    function activateCrayonMode() {
+        state.crayonMode = 300; 
+        document.getElementById('powerupMsg').innerHTML = '<span style="background: #ff00ff; color: #000; padding: 5px 10px; font-weight: bold;">🖍️ GIZ DE CERA (IRRACIONAL) 🖍️</span>';
+        document.getElementById('powerupMsg').style.display = 'block';
+        container.classList.add('crayon-mode');
+    }
+
+
+    function activateApeHelper() {
+        state.apeHelper = new ApeHelper(); 
+        document.getElementById('powerupMsg').innerHTML = '<span style="background: #654321; color: #fff; padding: 5px 10px; font-weight: bold;">🦍 APE SUPPORT ACQUIRED 🦍</span>';
+        document.getElementById('powerupMsg').style.display = 'block';
+        setTimeout(() => document.getElementById('powerupMsg').style.display = 'none', 1000);
+    }
+
+
+    // --- FUNÇÕES DE EFEITOS (Mantidas) ---
+    function spawnParticles(x, y, color) {
+        for(let i=0; i<8; i++) {
+            state.particles.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 6,
+                vy: (Math.random() - 0.5) * 6,
+                life: 20,
+                color: color
+            });
+        }
+    }
+
+
+    function drawParticles() {
+        for(let i=state.particles.length-1; i>=0; i--) {
+            let p = state.particles[i];
+            p.x += p.vx; p.y += p.vy; p.life--;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 3, 3);
+            if(p.life <= 0) state.particles.splice(i, 1);
+        }
+    }
+
+
+    function updateUI() {
+        document.getElementById('scoreDisplay').innerText = "+" + (state.score / 10).toFixed(2) + "%";
+        document.getElementById('tendiesDisplay').innerText = "🍗 " + state.tendies;
+        
+        const distToDeath = state.stopLossY - state.player.y;
+        if(distToDeath < 150) {
+            document.getElementById('scoreDisplay').style.color = "#ff4d4d";
+        } else {
+            document.getElementById('scoreDisplay').style.color = "#00ff41";
+        }
+    }
+
+
+    function gameOver() {
+        state.gameOver = true;
+        document.getElementById('finalScore').innerText = (state.score / 10).toFixed(2) + "%";
+        document.getElementById('game-over-screen').style.display = 'block';
+    }
+
+
+    function loop() {
+        update();
+        draw();
+        if (!state.gameOver) requestAnimationFrame(loop);
+    }
+
+
+    // Controles
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+    
+    // Mobile Touch
+    window.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const touchX = e.touches[0].clientX;
+        const width = window.innerWidth;
+        if (touchX < width / 2) keys.ArrowLeft = true;
+        else keys.ArrowRight = true;
+    });
+    window.addEventListener('touchend', e => {
+         e.preventDefault();
+         keys.ArrowLeft = false;
+         keys.ArrowRight = false;
+    });
+
+
+</script>
+</body>
+</html>
